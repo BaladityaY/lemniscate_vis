@@ -1,0 +1,59 @@
+from __future__ import print_function
+from PIL import Image
+import torchvision.datasets as datasets
+import torch.utils.data as data
+
+from random import shuffle
+
+class MNISTInstance(datasets.MNIST):
+    """MNIST Instance Dataset.
+    """
+
+    def __init__(self, subset_ratio=1.0, *args, **kwargs):
+        super(MNISTInstance, self).__init__(*args, **kwargs)
+
+        self.subset_ratio = subset_ratio
+
+        self.train_indices = None 
+        self.train_index = 0
+        
+        self.test_indices = None
+        self.test_index = 0
+
+    def __getitem__(self, index):
+        """
+        Args:
+            index (int): Index
+        Returns:
+            tuple: (image, target) where target is index of the target class.
+        """
+        
+        if self.train:
+
+            if self.train_index == 0:
+                self.train_indices = range(int(self.subset_ratio*len(self.train_data)))
+                shuffle(self.train_indices)
+            
+            index = self.train_indices[self.train_index]
+            img, target = self.train_data[index], self.train_labels[index]
+            self.train_index = self.train_index + 1
+        else:
+            if self.test_index == 0:
+                self.test_indices = range(int(self.subset_ratio*len(self.test_data)))
+                shuffle(self.test_indices)
+                
+            index = self.test_indices[self.test_index]
+            img, target = self.test_data[index], self.test_labels[index]
+            self.test_index = self.test_index + 1 
+
+        # doing this so that it is consistent with all other datasets
+        # to return a PIL Image
+        img = Image.fromarray(img.numpy(), mode='L')
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return img, target, index
