@@ -4,6 +4,7 @@ import torchvision.datasets as datasets
 import torch.utils.data as data
 
 import numpy as np
+from random import shuffle
 
 class MNISTInstance(datasets.MNIST):
     """MNIST Instance Dataset.
@@ -22,7 +23,8 @@ class MNISTInstance(datasets.MNIST):
         self.test_indices = None
         self.test_index = 0
 
-        self.first_random = True
+        np.random.seed(232323)
+        self.classes = np.random.choice(10, int(10*self.classes_ratio), replace=False)
 
     def __getitem__(self, index):
         """
@@ -31,18 +33,14 @@ class MNISTInstance(datasets.MNIST):
         Returns:
             tuple: (image, target) where target is index of the target class.
         """
-
-        if self.first_random:
-            self.first_random = False
-            np.random.seed(232323)
-            
-        self.classes = np.random.choice(10, int(10*self.classes_ratio), replace=False)
         
         if self.train:                
             if self.train_index == 0:
                 train_inds = [i for i in range(len(self.train_labels)) if self.train_labels[i] in self.classes]
-                
+
+                np.random.seed(232323)
                 self.train_indices = np.random.choice(train_inds, int(self.subset_ratio*len(train_inds)), replace=False)
+                shuffle(self.train_indices)
             
             index = self.train_indices[self.train_index]
             img, target = self.train_data[index], self.train_labels[index]
