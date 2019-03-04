@@ -25,6 +25,7 @@ class MNISTInstance(datasets.MNIST):
 
         np.random.seed(232323)
         self.classes = np.random.choice(10, int(10*self.classes_ratio), replace=False)
+        print('classes: {}'.format(self.classes))
 
     def __getitem__(self, index):
         """
@@ -52,8 +53,10 @@ class MNISTInstance(datasets.MNIST):
         else:
             if self.test_index == 0:
                 test_inds = [i for i in range(len(self.test_labels)) if self.test_labels[i] in self.classes]
-                
+
+                np.random.seed(232323)
                 self.test_indices = np.random.choice(test_inds, int(self.subset_ratio*len(test_inds)), replace=False)
+                shuffle(self.test_indices)
                 
             index = self.test_indices[self.test_index]
             img, target = self.test_data[index], self.test_labels[index]
