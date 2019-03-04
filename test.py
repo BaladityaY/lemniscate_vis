@@ -5,7 +5,9 @@ from lib.utils import AverageMeter
 import torchvision.transforms as transforms
 import numpy as np
 
-def NN(epoch, net, lemniscate, trainloader, testloader, recompute_memory=0):
+import itertools
+
+def NN(epoch, net, lemniscate, trainloader, testloader, recompute_memory=0, subset_ratio=1.0, classes_ratio=1.0):
     net.eval()
     net_time = AverageMeter()
     cls_time = AverageMeter()
@@ -34,7 +36,7 @@ def NN(epoch, net, lemniscate, trainloader, testloader, recompute_memory=0):
     
     end = time.time()
     with torch.no_grad():
-        for batch_idx, (inputs, targets, indexes) in enumerate(testloader):
+        for batch_idx, (inputs, targets, indexes) in enumerate(itertools.islice(testloader, int(len(train_loader)*subset_ratio*classes_ratio) - 1)):
             targets = targets.cuda(async=True)
             batchSize = inputs.size(0)
             features = net(inputs)
@@ -64,7 +66,7 @@ def NN(epoch, net, lemniscate, trainloader, testloader, recompute_memory=0):
 
     return correct/total
 
-def kNN(epoch, net, lemniscate, trainloader, testloader, K, sigma, recompute_memory=0):
+def kNN(epoch, net, lemniscate, trainloader, testloader, K, sigma, recompute_memory=0, subset_ratio=1.0, classes_ratio=1.0):
     net.eval()
     net_time = AverageMeter()
     cls_time = AverageMeter()
@@ -95,7 +97,7 @@ def kNN(epoch, net, lemniscate, trainloader, testloader, K, sigma, recompute_mem
     end = time.time()
     with torch.no_grad():
         retrieval_one_hot = torch.zeros(K, C).cuda()
-        for batch_idx, (inputs, targets, indexes) in enumerate(testloader):
+        for batch_idx, (inputs, targets, indexes) in enumerate(itertools.islice(testloader, int(len(train_loader)*subset_ratio*classes_ratio) - 1)):
             end = time.time()
             targets = targets.cuda(async=True)
             batchSize = inputs.size(0)

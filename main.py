@@ -78,6 +78,10 @@ parser.add_argument('--nce-m', default=0.5, type=float,
                     help='momentum for non-parametric updates')
 parser.add_argument('--iter_size', default=1, type=int,
                     help='caffe style iter size')
+parser.add_argument('--subset-ratio', default=1.0, type=float,
+                    help='ratio of how much of full dataset to use')
+parser.add_argument('--classes-ratio', default=1.0, type=float,
+                    help='ratio of how much of total classes to use')
 
 best_prec1 = 0
 
@@ -128,7 +132,10 @@ def main():
             normalize,
         ]))
     '''
-    
+
+
+    ### FOR MNIST
+    '''
     train_trans = transforms.Compose([transforms.RandomResizedCrop(size=224, scale=(0.2,1)),
                                       transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
                                       transforms.RandomGrayscale(p=0.2),
@@ -138,12 +145,27 @@ def main():
                                     transforms.ToTensor()])#,
                                     #transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
 
+    '''
 
-    train_dataset = datasets.MNISTInstance(subset_ratio=1.0, classes_ratio=.25, batch_size=args.batch_size,
-                                           root=args.data, train=True, transform=train_trans, download=True,)
+    ### FOR CIFAR
+    train_trans = transforms.Compose([transforms.RandomResizedCrop(size=224, scale=(0.2,1.)),
+                                      transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
+                                      transforms.RandomGrayscale(p=0.2),
+                                      #transforms.RandomHorizontalFlip(),
+                                      transforms.ToTensor(),
+                                      transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+
+
+    val_trans = transforms.Compose([transforms.Resize(224),
+                                    transforms.ToTensor(),
+                                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+
+
+    train_dataset = datasets.CIFAR10Instance(subset_ratio=args.subset_ratio, classes_ratio=args.classes_ratio, batch_size=args.batch_size,
+                                             root=args.data, train=True, transform=train_trans, download=True,)
     
-    val_dataset = datasets.MNISTInstance(classes_ratio=.25, batch_size=args.batch_size,
-                                         root=args.data, train=False, transform=val_trans, download=True)
+    val_dataset = datasets.CIFAR10Instance(classes_ratio=args.classes_ratio, batch_size=args.batch_size,
+                                           root=args.data, train=False, transform=val_trans, download=True)
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
@@ -203,7 +225,7 @@ def main():
     cudnn.benchmark = True
 
     if args.evaluate:
-        kNN(0, model, lemniscate, train_loader, val_loader, 200, args.nce_t)
+        kNN(0, model, lemniscate, train_loader, val_loader, 200, args.nce_t, args.subset_ratio, args.classes_ratio)
         return
 
     for epoch in range(args.start_epoch, args.epochs):
@@ -212,10 +234,10 @@ def main():
         adjust_learning_rate(optimizer, epoch)
 
         # train for one epoch
-        train(train_loader, model, lemniscate, criterion, optimizer, epoch)
+        train(train_loader, model, lemniscate, criterion, optimizer, epoch, args.subset_ratio, args.classes_ratio)
 
         # evaluate on validation set
-        prec1 = NN(epoch, model, lemniscate, train_loader, val_loader)
+        prec1 = NN(epoch, model, lemniscate, train_loader, val_loader, classes_ratio=args.classes_ratio)
 
         # remember best prec@1 and save checkpoint
         is_best = prec1 > best_prec1
@@ -229,10 +251,10 @@ def main():
             'optimizer' : optimizer.state_dict(),
         }, is_best, epoch)
     # evaluate KNN after last epoch
-    kNN(0, model, lemniscate, train_loader, val_loader, 200, args.nce_t)
+    kNN(0, model, lemniscate, train_loader, val_loader, 200, args.nce_t, classes_ratio=args.classes_ratio)
 
 
-def train(train_loader, model, lemniscate, criterion, optimizer, epoch):
+def train(train_loader, model, lemniscate, criterion, optimizer, epoch, subset_ratio=1.0, classes_ratio=1.0):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -243,7 +265,7 @@ def train(train_loader, model, lemniscate, criterion, optimizer, epoch):
     end = time.time()
     optimizer.zero_grad()
     #for i, (input, _, index) in enumerate(train_loader):
-    for i, (input, _, index) in enumerate(itertools.islice(train_loader, int(len(train_loader)/2) - 1)):
+    for i, (input, _, index) in enumerate(itertools.islice(train_loader, int(len(train_loader)*subset_ratio*classes_ratio) - 1)):
         # measure data loading time
         data_time.update(time.time() - end)
 
@@ -273,7 +295,7 @@ def train(train_loader, model, lemniscate, criterion, optimizer, epoch):
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
-                   epoch, i, int(len(train_loader))/2, batch_time=batch_time,
+                   epoch, i, int(len(train_loader)/2), batch_time=batch_time,
                    data_time=data_time, loss=losses))
 
 
